@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CANDIDATE
+  RECRUITER
+  HIRING_MANAGER
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
+enum ApplicationStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(CANDIDATE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  companyId    Int?
+  company      Company? @relation(fields: [companyId], references: [id])
+  applications Application[]
+  
+  // Jobs managed (as recruiter) or associated with (as HM) could be implicit or explicit.
+  // For simplicity, Recruiters manage jobs of their company.
+  
+  historyChanges ApplicationHistory[] // Track who changed the stage
+}
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+  jobs  Job[]
+}
+
+model Job {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String
+  status      JobStatus @default(OPEN)
+  companyId   Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  applications Application[]
+}
+
+model Application {
+  id          Int              @id @default(autoincrement())
+  jobId       Int
+  candidateId Int
+  stage       ApplicationStage @default(APPLIED)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  job       Job  @relation(fields: [jobId], references: [id])
+  candidate User @relation(fields: [candidateId], references: [id])
+
+  history ApplicationHistory[]
+  
+  @@unique([jobId, candidateId]) // Prevent duplicate applications
+}
+
+model ApplicationHistory {
+  id            Int              @id @default(autoincrement())
+  applicationId Int
+  fromStage     ApplicationStage? // Null for initial creation
+  toStage       ApplicationStage
+  changedById   Int
+  timestamp     DateTime         @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id])
+  changedBy   User        @relation(fields: [changedById], references: [id])
+}
